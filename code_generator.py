@@ -80,13 +80,23 @@ class CodeGenerator:
             memory_location = self.symbol_table[identifier]['memory_location']
             data_type = self.symbol_table[identifier]['data_type']
             if data_type == 'enum':
-                self.instructions.append(
-                    f"LOAD {value}, r1")
+                if value.isdigit():
+                    self.instructions.append(
+                        f"LOAD {value}, r1")
+                else:
+                    mem_loc = self.symbol_table[value]['memory_location']
+                    self.instructions.append(
+                        f"LOAD {mem_loc}, r1")
                 self.instructions.append(
                     f"STORE r1, {memory_location}")
             elif data_type == 'efl':
-                self.instructions.append(
-                    f"FLOAD {value}, fr1")
+                if self._is_float(value):
+                    self.instructions.append(
+                        f"FLOAD {value}, fr1")
+                else:
+                    mem_loc = self.symbol_table[value]['memory_location']
+                    self.instructions.append(
+                        f"FLOAD {mem_loc}, fr1")
                 self.instructions.append(
                     f"FSTORE fr1, {memory_location}")
             elif data_type == 'estr':
@@ -98,6 +108,13 @@ class CodeGenerator:
                     f"LOAD {boolean_value}, r1")
                 self.instructions.append(
                     f"STORE r1, {memory_location}")
+
+    def _is_float(self, value):
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
 
     def _generate_conditional_code(self, tokens, i):
         condition_start = tokens[i]['value']
@@ -143,13 +160,29 @@ class CodeGenerator:
     def _generate_addition_code(self, tokens, i):
         operand1 = tokens[i - 1]['value']
         operand2 = tokens[i + 1]['value']
-        result = int(operand1) + int(operand2)
-        self.output = result
-
-        self.instructions.append(f"LOAD {operand1}, r1")
-        self.instructions.append(f"ADD {operand2}, r1, r2")
-        self.instructions.append(f"STORE r2, {self.memory_location_counter}")
-        self.memory_location_counter += 4
+        if operand1.isdigit() and operand2.isdigit():
+            result = int(operand1) + int(operand2)
+            self.output = result
+            self.instructions.append(f"LOAD {operand1}, r1")
+            self.instructions.append(f"ADD {operand2}, r1, r2")
+            self.instructions.append(
+                f"STORE r2, {self.memory_location_counter}")
+            self.memory_location_counter += 4
+        else:
+            if operand1 in self.symbol_table:
+                self.instructions.append(
+                    f"LOAD {self.symbol_table[operand1]['memory_location']}, r1")
+            else:
+                self.instructions.append(f"LOAD {operand1}, r1")
+            if operand2 in self.symbol_table:
+                self.instructions.append(
+                    f"LOAD {self.symbol_table[operand2]['memory_location']}, r2")
+            else:
+                self.instructions.append(f"LOAD {operand2}, r2")
+            self.instructions.append(f"ADD r2, r1, r3")
+            self.instructions.append(
+                f"STORE r3, {self.memory_location_counter}")
+            self.memory_location_counter += 4
 
         # Set the output to the result of the addition
         self.output = result

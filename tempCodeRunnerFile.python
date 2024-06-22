@@ -117,11 +117,11 @@ class CompilerGUI(tk.Tk):
         self.run_code_generator_button.pack(fill=tk.X, pady=(0, 10), padx=5)
 
         self.show_output_button = ttk.Button(
-            button_frame, text="Show Optimized Code", command=self.show_optimized_Code, style='TButton')
+            button_frame, text="Show Output", command=self.show_output, style='TButton')
         self.show_output_button.pack(fill=tk.X, pady=(0, 10), padx=5)
 
         self.show_output_button = ttk.Button(
-            button_frame, text="Show Output", command=self.show_output, style='TButton')
+            button_frame, text="Show Optimized Code", command=self.show_optimized_Code, style='TButton')
         self.show_output_button.pack(fill=tk.X, pady=(0, 10), padx=5)
 
         ttk.Separator(button_frame, orient=tk.HORIZONTAL).pack(
@@ -178,8 +178,10 @@ class CompilerGUI(tk.Tk):
             self.output_text.insert(tk.END, optimized_code)
             self.output_text.config(state=tk.DISABLED)
         else:
-            self.output_text.insert(
-                tk.END, "No generated assembly code to optimize.\n")
+            self.output_text.insert(tk.END, "No generated assembly code to optimize.\n")
+
+
+        
 
     def scroll_text(self, *args):
         self.code_text.yview(*args)
@@ -253,12 +255,12 @@ class CompilerGUI(tk.Tk):
                 self.generated_assembly_code = assembly_code  # Store the generated code
                 self.output_text.insert(tk.END, "Generated Assembly Code:\n\n")
                 self.output_text.insert(tk.END, f"{assembly_code}\n")
-
+    
                 # Execute the code to get the output
                 output = execute_assembly_code(assembly_code)
                 self.output_text.insert(tk.END, "\nOutput:\n\n")
                 self.output_text.insert(tk.END, f"{output}\n")
-
+    
             except SyntaxError as e:
                 self.output_text.insert(tk.END, f"Syntax error: {e}\n")
             except ValueError as e:
@@ -269,6 +271,7 @@ class CompilerGUI(tk.Tk):
             for error in errors:
                 self.output_text.insert(tk.END, f"{error}\n")
         self.output_text.config(state=tk.DISABLED)
+
 
     def show_symbol_table(self):
         self.output_text.config(state=tk.NORMAL)
