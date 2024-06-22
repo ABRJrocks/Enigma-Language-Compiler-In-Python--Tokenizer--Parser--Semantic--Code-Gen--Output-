@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import scrolledtext, filedialog
 from tkinter import ttk
+import re
 from tokenizer import tokenize
 from Parser import Parser, SyntaxError
 from semantic_analyzer import SemanticAnalyzer
@@ -12,7 +13,7 @@ class CompilerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Compiler GUI")
-        self.geometry("900x700")
+        self.geometry("1920x1080")
         self.configure(bg='#1e1e1e')  # Dark background
 
         # Configure styles
@@ -30,6 +31,9 @@ class CompilerGUI(tk.Tk):
 
         # Create widgets
         self.create_widgets()
+
+        # Add syntax highlighting
+        self.syntax_highlight()
 
     def create_widgets(self):
         # Title frame
@@ -74,6 +78,7 @@ class CompilerGUI(tk.Tk):
         self.code_text = scrolledtext.ScrolledText(
             code_frame, width=80, wrap=tk.WORD, font=('Consolas', 12), bg='#252526', fg='#d4d4d4', insertbackground='#d4d4d4')
         self.code_text.pack(fill=tk.BOTH, expand=True)
+        self.code_text.bind("<KeyRelease>", self.syntax_highlight)
         self.code_text.bind("<Control-z>", self.undo)
         self.code_text.bind("<Control-y>", self.redo)
 
@@ -171,6 +176,7 @@ class CompilerGUI(tk.Tk):
                 content = file.read()
                 self.code_text.delete(1.0, tk.END)
                 self.code_text.insert(tk.END, content)
+            self.syntax_highlight()
 
     def save_file(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[
@@ -183,44 +189,28 @@ class CompilerGUI(tk.Tk):
     def show_tokens(self):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        source_code = self.code_text.get(1.0, tk.END)
-        tokens, errors = tokenize(source_code)
-        if errors:
-            self.output_text.insert(
-                tk.END, "Errors detected during tokenization:\n")
-            for error in errors:
-                self.output_text.insert(tk.END, f"{error}\n")
-        else:
-            for token in tokens:
-                self.output_text.insert(tk.END, f"{token}\n")
+        try:
+            tokens = tokenize(self.code_text.get(1.0, tk.END))
+            token_str = "\n".join([str(token) for token in tokens])
+            self.output_text.insert(tk.END, token_str)
+        except SyntaxError as e:
+            self.output_text.insert(tk.END, f"SyntaxError: {str(e)}\n")
         self.output_text.config(state=tk.DISABLED)
 
     def show_symbol_table(self):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        source_code = self.code_text.get(1.0, tk.END)
-        tokens, errors = tokenize(source_code)
-        if not errors:
-            symbol_table = create_enhanced_symbol_table(tokens)
-            output = print_symbol_table(symbol_table)
-            self.output_text.insert(tk.END, output)  # Insert formatted output
-        else:
-            self.output_text.insert(
-                tk.END, "Errors in source code, cannot create a valid symbol table:\n")
-            for error in errors:
-                self.output_text.insert(tk.END, f"{error}\n")
-        self.output_text.config(state=tk.DISABLED)
-
-    def show_output(self):
-        self.output_text.config(state=tk.NORMAL)
-        self.output_text.delete(1.0, tk.END)
-        if self.generated_assembly_code:
-            output = execute_assembly_code(self.generated_assembly_code)
-            self.output_text.insert(tk.END, "Output:\n\n")
-            self.output_text.insert(tk.END, f"{output}\n")
-        else:
-            self.output_text.insert(
-                tk.END, "No generated assembly code to execute.\n")
+        try:
+            tokens = tokenize(self.code_text.get(1.0, tk.END))
+            parser = Parser(tokens)
+            program = parser.parse()
+            semantic_analyzer = SemanticAnalyzer()
+            semantic_analyzer.visit(program)
+            symbol_table_str = print_symbol_table(
+                create_enhanced_symbol_table(program))
+            self.output_text.insert(tk.END, symbol_table_str)
+        except SyntaxError as e:
+            self.output_text.insert(tk.END, f"SyntaxError: {str(e)}\n")
         self.output_text.config(state=tk.DISABLED)
 
     def run_code_generator(self):
@@ -256,6 +246,34 @@ class CompilerGUI(tk.Tk):
                 tk.END, "Errors in source code, cannot generate code:\n")
             for error in errors:
                 self.output_text.insert(tk.END, f"{error}\n")
+        self.output_text.config(state=tk.DISABLED)
+
+    def show_symbol_table(self):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        source_code = self.code_text.get(1.0, tk.END)
+        tokens, errors = tokenize(source_code)
+        if not errors:
+            symbol_table = create_enhanced_symbol_table(tokens)
+            output = print_symbol_table(symbol_table)
+            self.output_text.insert(tk.END, output)  # Insert formatted output
+        else:
+            self.output_text.insert(
+                tk.END, "Errors in source code, cannot create a valid symbol table:\n")
+            for error in errors:
+                self.output_text.insert(tk.END, f"{error}\n")
+        self.output_text.config(state=tk.DISABLED)
+
+    def show_output(self):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        if self.generated_assembly_code:
+            output = execute_assembly_code(self.generated_assembly_code)
+            self.output_text.insert(tk.END, "Output:\n\n")
+            self.output_text.insert(tk.END, f"{output}\n")
+        else:
+            self.output_text.insert(
+                tk.END, "No generated assembly code to execute.\n")
         self.output_text.config(state=tk.DISABLED)
 
     def run_compiler(self):
@@ -324,16 +342,56 @@ class CompilerGUI(tk.Tk):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
         self.output_text.config(state=tk.DISABLED)
-        self.errors_label.config(text="Errors: None")
-        self.generated_assembly_code = None
 
     def undo(self, event=None):
-        self.code_text.event_generate("<<Undo>>")
+        self.code_text.edit_undo()
         return "break"
 
     def redo(self, event=None):
-        self.code_text.event_generate("<<Redo>>")
+        self.code_text.edit_redo()
         return "break"
+
+    def syntax_highlight(self, event=None):
+        # Remove previous tags
+        self.code_text.tag_remove("keyword", "1.0", tk.END)
+        self.code_text.tag_remove("comment", "1.0", tk.END)
+        self.code_text.tag_remove("string", "1.0", tk.END)
+        self.code_text.tag_remove("number", "1.0", tk.END)
+        self.code_text.tag_remove("identifier", "1.0", tk.END)
+
+        # Define the tag configurations for syntax highlighting
+        self.code_text.tag_configure("keyword", foreground="#569cd6")
+        self.code_text.tag_configure("comment", foreground="#6a9955")
+        self.code_text.tag_configure("string", foreground="#d69d85")
+        self.code_text.tag_configure("number", foreground="#b5cea8")
+        self.code_text.tag_configure("identifier", foreground="#9cdcfe")
+
+        keywords = ["if", "else", "for", "while",
+                    "return", "function", "var", "const", "let"]
+        keyword_pattern = re.compile(r'\b(' + '|'.join(keywords) + r')\b')
+        comment_pattern = re.compile(r'//.*|/\*[\s\S]*?\*/')
+        string_pattern = re.compile(r'".*?"')
+        number_pattern = re.compile(r'\b\d+\b')
+        identifier_pattern = re.compile(r'\b[A-Za-z_]\w*\b')
+
+        content = self.code_text.get("1.0", tk.END)
+        for match in keyword_pattern.finditer(content):
+            start, end = match.span()
+            self.code_text.tag_add("keyword", f"1.0+{start}c", f"1.0+{end}c")
+        for match in comment_pattern.finditer(content):
+            start, end = match.span()
+            self.code_text.tag_add("comment", f"1.0+{start}c", f"1.0+{end}c")
+        for match in string_pattern.finditer(content):
+            start, end = match.span()
+            self.code_text.tag_add("string", f"1.0+{start}c", f"1.0+{end}c")
+        for match in number_pattern.finditer(content):
+            start, end = match.span()
+            self.code_text.tag_add("number", f"1.0+{start}c", f"1.0+{end}c")
+        for match in identifier_pattern.finditer(content):
+            if match.group(0) not in keywords:
+                start, end = match.span()
+                self.code_text.tag_add(
+                    "identifier", f"1.0+{start}c", f"1.0+{end}c")
 
 
 def execute_assembly_code(assembly_code):

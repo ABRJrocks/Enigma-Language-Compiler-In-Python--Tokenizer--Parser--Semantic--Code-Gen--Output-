@@ -3,7 +3,8 @@ class CodeGenerator:
         self.instructions = []
         self.symbol_table = {}
         self.memory_location_counter = 1000
-        self.output = None  # Add output attribute
+        self.output = None
+        self.inputs = {}  # Dictionary to store input values
 
     def set_symbol_table(self, symbol_table):
         self.symbol_table = symbol_table
@@ -158,3 +159,13 @@ class CodeGenerator:
             print(self.output)
         else:
             print("No output to display.")
+
+    def _read_input(self, identifier):
+        if identifier in self.inputs:
+            value = self.inputs[identifier]
+            return value
+        else:
+            return None
+
+    def set_inputs(self, inputs):
+        self.inputs = inputs
